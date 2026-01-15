@@ -23,6 +23,14 @@ func buildNaive(size int) *NaiveHashMap[int, int] {
 	return m
 }
 
+func buildSharded(size int) *ShardedHashMap[int, int] {
+	m := NewShardedHashMap[int, int]()
+	for i := 0; i < size; i++ {
+		m = m.Set(i, i)
+	}
+	return m
+}
+
 func buildGoMap(size int) map[int]int {
 	m := make(map[int]int, size)
 	for i := 0; i < size; i++ {
@@ -67,6 +75,17 @@ func BenchmarkBuild(b *testing.B) {
 			}
 		})
 
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				m := NewShardedHashMap[int, int]()
+				for j := 0; j < size; j++ {
+					m = m.Set(j, j)
+				}
+			}
+		})
+
 		b.Run(fmt.Sprintf("GoMap/size_%d", size), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -86,6 +105,7 @@ func BenchmarkGet(b *testing.B) {
 	for _, size := range sizes {
 		hm := buildPersistent(size)
 		naive := buildNaive(size)
+		sharded := buildSharded(size)
 		gm := buildGoMap(size)
 
 		keysHit := pregenKeys(size, 1<<16)
@@ -104,6 +124,14 @@ func BenchmarkGet(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				k := keysHit[i&(len(keysHit)-1)]
 				_, _ = naive.Get(k)
+			}
+		})
+
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d/hit", size), func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				k := keysHit[i&(len(keysHit)-1)]
+				_, _ = sharded.Get(k)
 			}
 		})
 
@@ -131,6 +159,14 @@ func BenchmarkGet(b *testing.B) {
 			}
 		})
 
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d/miss", size), func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				k := keysMiss[i&(len(keysMiss)-1)] + size + 1
+				_, _ = sharded.Get(k)
+			}
+		})
+
 		b.Run(fmt.Sprintf("GoMap/size_%d/miss", size), func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -147,6 +183,7 @@ func BenchmarkSetUpdate(b *testing.B) {
 	for _, size := range sizes {
 		hm := buildPersistent(size)
 		naive := buildNaive(size)
+		sharded := buildSharded(size)
 		gm := buildGoMap(size)
 
 		keys := pregenKeys(size, 1<<16)
@@ -169,6 +206,15 @@ func BenchmarkSetUpdate(b *testing.B) {
 			}
 		})
 
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				k := keys[i&(len(keys)-1)]
+				_ = sharded.Set(k, 999)
+			}
+		})
+
 		b.Run(fmt.Sprintf("GoMap/size_%d", size), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -186,6 +232,7 @@ func BenchmarkSetInsert(b *testing.B) {
 	for _, size := range sizes {
 		hm := buildPersistent(size)
 		naive := buildNaive(size)
+		sharded := buildSharded(size)
 
 		keys := pregenKeys(size, 1<<16)
 
@@ -204,6 +251,15 @@ func BenchmarkSetInsert(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				k := keys[i&(len(keys)-1)] + size + 1
 				_ = naive.Set(k, 999)
+			}
+		})
+
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				k := keys[i&(len(keys)-1)] + size + 1
+				_ = sharded.Set(k, 999)
 			}
 		})
 
@@ -225,6 +281,7 @@ func BenchmarkDelete(b *testing.B) {
 	for _, size := range sizes {
 		hm := buildPersistent(size)
 		naive := buildNaive(size)
+		sharded := buildSharded(size)
 
 		keys := pregenKeys(size, 1<<16)
 
@@ -246,6 +303,15 @@ func BenchmarkDelete(b *testing.B) {
 			}
 		})
 
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d", size), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				k := keys[i&(len(keys)-1)]
+				_ = sharded.Delete(k)
+			}
+		})
+
 		b.Run(fmt.Sprintf("GoMap/size_%d", size), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -264,6 +330,7 @@ func BenchmarkIterate(b *testing.B) {
 	for _, size := range sizes {
 		hm := buildPersistent(size)
 		naive := buildNaive(size)
+		sharded := buildSharded(size)
 		gm := buildGoMap(size)
 
 		b.Run(fmt.Sprintf("HashMap/size_%d", size), func(b *testing.B) {
@@ -279,6 +346,15 @@ func BenchmarkIterate(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				for k, v := range naive.data {
+					_, _ = k, v
+				}
+			}
+		})
+
+		b.Run(fmt.Sprintf("ShardedHashMap/size_%d", size), func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for k, v := range sharded.All() {
 					_, _ = k, v
 				}
 			}
@@ -302,6 +378,7 @@ func BenchmarkVersionCreation(b *testing.B) {
 	for _, size := range sizes {
 		base := buildPersistent(size)
 		baseNaive := buildNaive(size)
+		baseSharded := buildSharded(size)
 		baseGo := buildGoMap(size)
 
 		for _, versions := range versionsList {
@@ -323,6 +400,17 @@ func BenchmarkVersionCreation(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
 					m := baseNaive
+					for j := 0; j < versions; j++ {
+						m = m.Set(keys[j], 999)
+					}
+				}
+			})
+
+			b.Run(fmt.Sprintf("ShardedHashMap/size_%d/versions_%d", size, versions), func(b *testing.B) {
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					m := baseSharded
 					for j := 0; j < versions; j++ {
 						m = m.Set(keys[j], 999)
 					}
@@ -396,6 +484,28 @@ func BenchmarkMixedOperations(b *testing.B) {
 		}
 	})
 
+	b.Run("ShardedHashMap", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			m := NewShardedHashMap[int, int]()
+			for j := 0; j < size; j++ {
+				m = m.Set(j, j)
+			}
+
+			for j := 0; j < 1000; j++ {
+				k := keys[j]
+				_, _ = m.Get(k)
+				m = m.Set(k, 999)
+			}
+
+			for j := 0; j < 500; j++ {
+				m = m.Delete(keys[j])
+			}
+		}
+	})
+
 	b.Run("GoMap", func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -435,6 +545,16 @@ func BenchmarkMemoryAllocation(b *testing.B) {
 
 	b.Run("NaiveHashMap/multipleSet", func(b *testing.B) {
 		m := buildNaive(size)
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			k := keys[i&(len(keys)-1)]
+			_ = m.Set(k, 999)
+		}
+	})
+
+	b.Run("ShardedHashMap/multipleSet", func(b *testing.B) {
+		m := buildSharded(size)
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
